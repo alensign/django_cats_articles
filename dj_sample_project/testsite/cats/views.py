@@ -4,14 +4,15 @@ from .models import *
 from .forms import *
 from django.views.generic import ListView, DetailView, CreateView
 from django.urls import reverse_lazy
-# Create your views here.
-menu = [{'title': 'About', 'url_name': 'about'},
-        {'title': 'New Article', 'url_name': 'add_page'},
-        {'title': 'Contact', 'url_name': 'contact'},
-        {'title': 'Login', 'url_name': 'login'},
-       ]
+from .utils import *
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.views import LoginView
+from django.contrib.auth import logout, login
 
-class CatsHome(ListView):
+
+class CatsHome(DataMixin,ListView):
     model = Cats
     template_name = 'cats/index.html'
     context_object_name = 'posts'
@@ -19,9 +20,9 @@ class CatsHome(ListView):
 
     def get_context_data(self,*,object_list=None,**kwargs):
         context = super().get_context_data(**kwargs)
-        context['menu'] = menu
-        context['title']="Main page"
-        context['cat_selected']=0
+        # context['title']="Main page"
+        c_def = self.get_user_context(title = "Main page")
+        context = dict(list(context.items())+list(c_def.items()))
         return context
 
     def get_queryset(self):
@@ -39,18 +40,24 @@ class CatsHome(ListView):
 #    return render(request, 'cats/index.html', context = context)
 
 def about(request): #HttpRequest
-    return render(request, 'cats/about.html', {'menu': menu,'title': 'About'})
+    contact_list = Cats.objects.all()
+    paginator = Paginator(contact_list,3)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    return render(request, 'cats/about.html', {'page_obj':page_obj,'menu': menu,'title': 'About'})
 
 
-class AddPage(CreateView):
+class AddPage(LoginRequiredMixin,DataMixin,CreateView):
     form_class = AddPostForm
     template_name = 'cats/addpage.html'   
     success_url =reverse_lazy("home")
+    login_url = reverse_lazy('home')
+    raise_exception = True
 
     def get_context_data(self,*,object_list=None,**kwargs):
         context = super().get_context_data(**kwargs)
-        context['menu'] = menu
-        context['title']='New Article'
+        c_def = self.get_user_context(title = "New article")
+        context = dict(list(context.items())+list(c_def.items()))
         return context
 
 
@@ -70,13 +77,46 @@ class AddPage(CreateView):
 def contact(request):
     return HttpResponse("Leave your feedback")
 
-def login(request):
-    return HttpResponse("Authorize")
+# def login(request):
+#     return HttpResponse("Authorize")
+class Login(DataMixin, LoginView):
+    form_class = AuthenticationForm
+    template_name = 'cats/login.html'
+    
+    def get_context_data(self,*,object_list=None,**kwargs):
+        context = super().get_context_data(**kwargs)
+        c_def = self.get_user_context(title = 'Log In')
+        context = dict(list(context.items())+list(c_def.items()))
+        return context
+
+    def get_success_url(self):
+        return reverse_lazy('home')
+
+def logout_user(request):
+    logout(request)
+    return redirect('login')
+
+class SignUp(DataMixin, CreateView):
+    form_class = SignUpForm
+    template_name = 'cats/signup.html'
+    success_url = reverse_lazy('login')
+    def get_context_data(self,*,object_list=None,**kwargs):
+        context = super().get_context_data(**kwargs)
+        c_def = self.get_user_context(title = 'Sign Up')
+        context = dict(list(context.items())+list(c_def.items()))
+        return context
+    def form_valid(self,form):
+        user=form.save()
+        login(self.request,user)
+        return redirect('home')
+
+# def signup(request):
+#     return HttpResponse("Create Profile")
 
 def pageNotFound(request, exception):
     return HttpResponseNotFound("<h1>Page not found</h>")
 
-class ShowPost(DetailView):
+class ShowPost(DataMixin,DetailView):
     model = Cats
     template_name = 'cats/post.html'
     slug_url_kwarg = 'post_slug'
@@ -84,8 +124,8 @@ class ShowPost(DetailView):
 
     def get_context_data(self,*,object_list=None,**kwargs):
         context = super().get_context_data(**kwargs)
-        context['menu'] = menu
-        context['title']=context['post']
+        c_def = self.get_user_context(title = context['post'])
+        context = dict(list(context.items())+list(c_def.items()))
         return context
 # def show_post(request,post_slug):
 #     post = get_object_or_404(Cats,slug=post_slug)
@@ -97,7 +137,7 @@ class ShowPost(DetailView):
 #                }
 #     return render(request,'cats/post.html',context=context)
 
-class CatsCategory(ListView):
+class CatsCategory(DataMixin,ListView):
     model = Cats
     template_name = 'cats/index.html'
     context_object_name = 'posts'
@@ -108,9 +148,11 @@ class CatsCategory(ListView):
         return Cats.objects.filter(cat__slug=self.kwargs['cat_slug'],is_published = True)
     def get_context_data(self,*,object_list=None,**kwargs):
         context = super().get_context_data(**kwargs)
-        context['menu'] = menu
-        context['title']="Category - " + str(context['posts'][0].cat)
-        context['cat_selected']=context['posts'][0].cat_id
+        # context['menu'] = menu
+        # context['title']="Category - " + str(context['posts'][0].cat)
+        # context['cat_selected']=context['posts'][0].cat_id
+        c_def = self.get_user_context(title="Category - " + str(context['posts'][0].cat),cat_selected = context['posts'][0].cat_id)
+        context = dict(list(context.items())+list(c_def.items()))
         return context
 # def show_category(request,cat_slug):
 #     cats = Category.objects.all()
