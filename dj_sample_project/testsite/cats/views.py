@@ -26,7 +26,7 @@ class CatsHome(DataMixin,ListView):
         return context
 
     def get_queryset(self):
-        return Cats.objects.filter(is_published =True)
+        return Cats.objects.filter(is_published =True).select_related('cat')
 
 
 #def index(request): #HttpRequest
@@ -145,13 +145,14 @@ class CatsCategory(DataMixin,ListView):
     allow_empty=False
 
     def get_queryset(self):
-        return Cats.objects.filter(cat__slug=self.kwargs['cat_slug'],is_published = True)
+        return Cats.objects.filter(cat__slug=self.kwargs['cat_slug'],is_published = True).select_related('cat')
     def get_context_data(self,*,object_list=None,**kwargs):
         context = super().get_context_data(**kwargs)
         # context['menu'] = menu
         # context['title']="Category - " + str(context['posts'][0].cat)
         # context['cat_selected']=context['posts'][0].cat_id
-        c_def = self.get_user_context(title="Category - " + str(context['posts'][0].cat),cat_selected = context['posts'][0].cat_id)
+        c = Category.objects.get(slug=self.kwargs['cat_slug'])
+        c_def = self.get_user_context(title="Category - " + str(c.name),cat_selected = c.pk)
         context = dict(list(context.items())+list(c_def.items()))
         return context
 # def show_category(request,cat_slug):
